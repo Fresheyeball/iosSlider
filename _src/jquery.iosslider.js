@@ -28,6 +28,18 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED 
  * OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
+ 
+ /*
+ *
+ * Slight update: new option added. New Option is called 'disableDragOn' 
+ * If you are using other touch enabled scripts inside the slider, you may not want the slider to move when users are
+ * interacting with these parts of the page. Do prevent this, simply use the new option and a CSS selector for the parent
+ * of the area you wish to disable.
+ *
+ * for example $('elem').iosSlider({ disableDragOn : '#disabledDiv' });
+ * now if user touches that div or anything inside and drags the slider will not move, allowing the nesting of touch scripts.
+ *
+ */
 
 ;(function($) {
 	
@@ -53,7 +65,6 @@
 	var iosSliderSettings = new Array();
 	var isEventCleared = new Array();
 	var slideTimeouts = new Array();
-	var activeChildOffsets = new Array();
 	
 	/* private functions */
 	var helpers = {
@@ -98,7 +109,7 @@
 		
 		slowScrollHorizontalInterval: function(node, newOffset, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, activeChildOffset, childrenOffsets, infiniteSliderWidth, infiniteSliderOffset, numberOfSlides, settings) {
 	
-			newChildOffset = helpers.calcActiveOffset(settings, newOffset, 0, childrenOffsets, sliderMax, stageWidth, infiniteSliderOffset, undefined);
+			newChildOffset = helpers.calcActiveOffset(settings, newOffset, 0, childrenOffsets, sliderMax, stageWidth, undefined);
 			if(newChildOffset != activeChildOffset) {
 				settings.onSlideChange(new helpers.args(settings, node, $(node).children(':eq(' + activeChildOffset + ')'), activeChildOffset%infiniteSliderOffset));
 			}
@@ -146,7 +157,7 @@
 			
 		},
 		
-		slowScrollHorizontal: function(node, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings) {
+		slowScrollHorizontal: function(node, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, activeChildOffset, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings) {
 	
 			var distanceOffsetArray = new Array();
 			var nodeOffset = helpers.getSliderOffset(node, 'x');
@@ -171,7 +182,11 @@
 			}
 			
 			var testNodeOffsets = helpers.getAnimationSteps(settings, xScrollDistance, nodeOffset, sliderMax, sliderMin, childrenOffsets);
-			var newChildOffset = helpers.calcActiveOffset(settings, testNodeOffsets[testNodeOffsets.length-1], snapDirection, childrenOffsets, sliderMax, stageWidth, infiniteSliderOffset, activeChildOffsets[sliderNumber]);
+			var newChildOffset = helpers.calcActiveOffset(settings, testNodeOffsets[testNodeOffsets.length-1], snapDirection, childrenOffsets, sliderMax, stageWidth, activeChildOffset);
+			
+			/*var newChildOffset = snapToChildren ?
+				helpers.calcActiveOffset(settings, nodeOffset, snapDirection, childrenOffsets, sliderMax, stageWidth, activeChildOffset) :
+				helpers.calcActiveOffset(settings, testNodeOffsets[testNodeOffsets.length-1], snapDirection, childrenOffsets, sliderMax, stageWidth, activeChildOffset);*/
 			
 			if(settings.infiniteSlider) {
 	
@@ -236,7 +251,7 @@
 			
 			helpers.hideScrollbar(settings, scrollTimeouts, j, distanceOffsetArray, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder);
 			
-			activeChildOffsets[sliderNumber] = newChildOffset;
+			return newChildOffset;
 				
 		},
 		
@@ -351,7 +366,7 @@
 			
 		},
 
-        calcActiveOffset: function(settings, offset, snapDirection, childrenOffsets, sliderMax, stageWidth, infiniteSliderOffset, activeChildOffset) {
+        calcActiveOffset: function(settings, offset, snapDirection, childrenOffsets, sliderMax, stageWidth, activeChildOffset) {
 			
 			var isFirst = false;
 			var arrayOfOffsets = new Array();
@@ -403,13 +418,13 @@
 				
 			}
 			
-			if((snapDirection < 0) && (newChildOffset%infiniteSliderOffset == activeChildOffset%infiniteSliderOffset)) {
+			if((snapDirection < 0) && (newChildOffset == activeChildOffset)) {
 				
 				newChildOffset = activeChildOffset + 1;
 			
 				if(newChildOffset >= childrenOffsets.length) newChildOffset = childrenOffsets.length - 1;
 				
-			} else if((snapDirection > 0) && (newChildOffset%infiniteSliderOffset == activeChildOffset%infiniteSliderOffset)) {
+			} else if((snapDirection > 0) && (newChildOffset == activeChildOffset)) {
 				
 				newChildOffset = activeChildOffset - 1;
 				
@@ -492,11 +507,13 @@
 
 			autoSlideTimeouts[sliderNumber] = setTimeout(function() {
 				
-				if(!settings.infiniteSlider && (activeChildOffsets[sliderNumber] > childrenOffsets.length-1)) {
-					activeChildOffsets[sliderNumber] = activeChildOffsets[sliderNumber] - numberOfSlides;
+				var activeChildOffset = helpers.calcActiveOffset(settings, helpers.getSliderOffset(scrollerNode, 'x'), 0, childrenOffsets, sliderMax, stageWidth, undefined) + 1;
+				
+				if(!settings.infiniteSlider && (activeChildOffset > childrenOffsets.length-1)) {
+					activeChildOffset = activeChildOffset - numberOfSlides;
 				}
 				
-				activeChildOffsets[sliderNumber] = helpers.changeSlide(activeChildOffsets[sliderNumber] + 1, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+				activeChildOffset = helpers.changeSlide(activeChildOffset, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 				
 				helpers.autoSlide(scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 				
@@ -569,6 +586,7 @@
 		init: function(options) {
 			
 			var settings = $.extend({
+				'disableDragOn' : 'body',
 				'elasticPullResistance': 0.6, 		
 				'frictionCoefficient': 0.92,
 				'elasticFrictionCoefficient': 0.6,
@@ -622,7 +640,7 @@
 				var scrollMargin;
 				var scrollBorder;
 				var lastTouch;
-				activeChildOffsets[sliderNumber] = settings.startAtSlide-1;
+				var activeChildOffset = settings.startAtSlide-1;
 				var newChildOffset = -1;
 				var webkitTransformArray = new Array();
 				var childrenOffsets;
@@ -671,8 +689,8 @@
 				
 				if(settings.infiniteSlider) {
 					
-					activeChildOffsets[sliderNumber] = activeChildOffsets[sliderNumber] + infiniteSliderOffset;
-					helpers.setSliderOffset(scrollerNode, childrenOffsets[activeChildOffsets[sliderNumber]]);
+					activeChildOffset = activeChildOffset + infiniteSliderOffset;
+					helpers.setSliderOffset(scrollerNode, childrenOffsets[activeChildOffset]);
 					
 				}
 				
@@ -683,7 +701,7 @@
 				
 				});
 						
-				settings.onSliderLoaded(new helpers.args(settings, scrollerNode, $(scrollerNode).children(':eq(' + activeChildOffsets[sliderNumber] + ')'), activeChildOffsets[sliderNumber]%infiniteSliderOffset));
+				settings.onSliderLoaded(new helpers.args(settings, scrollerNode, $(scrollerNode).children(':eq(' + activeChildOffset + ')'), activeChildOffset%infiniteSliderOffset));
 				
 				function init() {
 					
@@ -718,12 +736,12 @@
 					if(settings.responsiveSlideWidth) {
 						
 						$(slideNodes).each(function(j) {
-							
+						
 							var thisSlideWidth = $(this).outerWidth(true);
-
-							if(thisSlideWidth > stageWidth) {
+							
+							if(thisSlideWidth > containerWidth) {
 								
-								thisSlideWidth = stageWidth + ($(this).outerWidth(true) - $(this).width()) * -1;
+								thisSlideWidth = containerWidth + ($(this).outerWidth(true) - $(this).width()) * -1;
 							
 							} else {
 								
@@ -776,7 +794,11 @@
 						overflow: 'hidden'
 					});
 					
-					helpers.setSliderOffset(scrollerNode, childrenOffsets[activeChildOffsets[sliderNumber]]);
+					if(!isFirstInit) {
+						activeChildOffset = helpers.calcActiveOffset(settings, helpers.getSliderOffset($(scrollerNode), 'x'), 0, childrenOffsets, sliderMax, stageWidth, undefined);
+					}
+					
+					helpers.setSliderOffset(scrollerNode, childrenOffsets[activeChildOffset]);
 					
 					if(sliderMax <= 0) {
 						
@@ -837,7 +859,7 @@
 							border: settings.scrollbarBorder,
 							'webkitPerspective': 1000,
 							'webkitBackfaceVisibility': 'hidden',
-							'webkitTransform': 'translateX(' + Math.floor((childrenOffsets[activeChildOffsets[sliderNumber]] * -1) / (sliderMax) * (stageWidth - scrollMargin - scrollbarWidth)) + 'px)',
+							'webkitTransform': 'translateX(' + Math.floor((childrenOffsets[activeChildOffset] * -1) / (sliderMax) * (stageWidth - scrollMargin - scrollbarWidth)) + 'px)',
 							opacity: scrollbarStartOpacity,
 							filter: 'alpha(opacity:' + (scrollbarStartOpacity * 100) + ')',
 							boxShadow: settings.scrollbarShadow
@@ -850,7 +872,7 @@
 						if(!isTouch) {	
 							$('.' + scrollbarClass).css({
 								position: 'relative',
-								left: Math.floor((childrenOffsets[activeChildOffsets[sliderNumber]] * -1) / (sliderMax) * (stageWidth - scrollMargin - scrollbarWidth))
+								left: Math.floor((childrenOffsets[activeChildOffset] * -1) / (sliderMax) * (stageWidth - scrollMargin - scrollbarWidth))
 							});
 						}
 						
@@ -877,7 +899,7 @@
 									goToSlide = j + infiniteSliderOffset;
 								}
 								
-								activeChildOffsets[sliderNumber] = helpers.changeSlide(goToSlide, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+								activeChildOffset = helpers.changeSlide(goToSlide, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 							});
 						
 						});
@@ -890,9 +912,12 @@
 							cursor: 'pointer'
 						});
 						
-						$(settings.navPrevSelector).unbind('click.iosSliderEvent').bind('click.iosSliderEvent', function() {					
-							if((activeChildOffsets[sliderNumber] > 0) || settings.infiniteSlider) {
-								activeChildOffsets[sliderNumber] = helpers.changeSlide(activeChildOffsets[sliderNumber] - 1, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+						$(settings.navPrevSelector).unbind('click.iosSliderEvent').bind('click.iosSliderEvent', function() {	
+							
+							activeChildOffset = helpers.calcActiveOffset(settings, helpers.getSliderOffset($(scrollerNode), 'x'), 0, childrenOffsets, sliderMax, stageWidth, undefined);
+							
+							if((activeChildOffset > 0) || settings.infiniteSlider) {
+								activeChildOffset = helpers.changeSlide(activeChildOffset - 1, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 							} 
 						});
 					
@@ -905,8 +930,11 @@
 						});
 						
 						$(settings.navNextSelector).unbind('click.iosSliderEvent').bind('click.iosSliderEvent', function() {
-							if((activeChildOffsets[sliderNumber] < childrenOffsets.length-1) || settings.infiniteSlider) {
-								activeChildOffsets[sliderNumber] = helpers.changeSlide(activeChildOffsets[sliderNumber] + 1, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+							
+							activeChildOffset = helpers.calcActiveOffset(settings, helpers.getSliderOffset($(scrollerNode), 'x'), 0, childrenOffsets, sliderMax, stageWidth, undefined);
+							
+							if((activeChildOffset < childrenOffsets.length-1) || settings.infiniteSlider) {
+								activeChildOffset = helpers.changeSlide(activeChildOffset + 1, scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 							}
 						});
 					
@@ -961,7 +989,7 @@
 						
 						} else {
 							
-							$(stageNode).bind('touchend.iosSliderEvent', function() {
+							$(stageNode).bind('touchend.iosSliderEvent', function(e) {
 							
 								if(!isAutoSlideToggleOn) {
 									helpers.autoSlide(scrollerNode, scrollTimeouts, sliderMax, scrollbarClass, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
@@ -973,7 +1001,7 @@
 					
 					}
 					
-					helpers.onSlideComplete(settings, scrollerNode, $(scrollerNode).children(':eq(' + activeChildOffsets[sliderNumber] + ')'), activeChildOffsets[sliderNumber]%infiniteSliderOffset, sliderNumber);
+					helpers.onSlideComplete(settings, scrollerNode, $(scrollerNode).children(':eq(' + activeChildOffset + ')'), activeChildOffset%infiniteSliderOffset, sliderNumber);
 					
 					$(stageNode).data('iosslider', {
 						obj: $this,
@@ -1020,6 +1048,10 @@
 					
 					$(scrollerNode).bind('touchstart.iosSliderEvent mousedown.iosSliderEvent', function(e) {
 
+						if( $(settings.disableDragOn).has($(e.target)).length ){
+							return false;
+						}
+
 						helpers.autoSlidePause(sliderNumber);
 						
 						if(!isTouch) {
@@ -1034,20 +1066,20 @@
 								document.selection.empty();
 							}
 							
+						}
+	
+						if(isTouch) {
+							eventX = event.touches[0].pageX;
+							eventY = event.touches[0].pageY;
+						} else {
 							eventX = e.pageX;
 							eventY = e.pageY;
 							isMouseDown = true;
 							currentSlider = this;
-
-							$(this).css({
+							
+							$(scrollerNode).css({
 								cursor: grabInCursor
 							});
-							
-						} else {
-						
-							eventX = event.touches[0].pageX;
-							eventY = event.touches[0].pageY;
-						
 						}
 						
 						xCurrentScrollRate = new Array(0, 0);
@@ -1061,12 +1093,13 @@
 						
 						var scrollPosition = helpers.getSliderOffset(this, 'x');
 						
-						intermediateChildOffset = activeChildOffsets[sliderNumber];
+						activeChildOffset = helpers.calcActiveOffset(settings, scrollPosition, 0, childrenOffsets, sliderMax, stageWidth, undefined);
+						intermediateChildOffset = activeChildOffset;
 						
 						if(settings.infiniteSlider) {
 							
-							if(activeChildOffsets[sliderNumber]%numberOfSlides == 0) {
-								var cloneSlide = $(this).children(':eq(' + activeChildOffsets[sliderNumber] + ')').clone(this);
+							if(activeChildOffset%numberOfSlides == 0) {
+								var cloneSlide = $(this).children(':eq(' + activeChildOffset + ')').clone(this);
 								$(this).children().each(function(i) {
 										
 									if(i+1%numberOfSlides == 0) {
@@ -1239,7 +1272,7 @@
 						
 						}
 						
-						newChildOffset = helpers.calcActiveOffset(settings, (xScrollStartPosition - eventX - edgeDegradation) * -1, 0, childrenOffsets, sliderMax, stageWidth, infiniteSliderOffset, undefined);
+						newChildOffset = helpers.calcActiveOffset(settings, (xScrollStartPosition - eventX - edgeDegradation) * -1, 0, childrenOffsets, sliderMax, stageWidth, undefined);
 						if(newChildOffset != intermediateChildOffset) {
 							intermediateChildOffset = newChildOffset;
 							settings.onSlideChange(new helpers.args(settings, this, $(this).children(':eq(' + newChildOffset + ')'), newChildOffset%infiniteSliderOffset));	
@@ -1254,14 +1287,14 @@
 							for(var j = 0; j < sizeof(event.touches.length); j++) {
 								
 								if(event.touches[j].pageX == lastTouch) {
-									helpers.slowScrollHorizontal(this, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+									activeChildOffset = helpers.slowScrollHorizontal(this, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, activeChildOffset, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 								}
 								
 							}
 							
 						} else {
 							
-							helpers.slowScrollHorizontal(this, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+							activeChildOffset = helpers.slowScrollHorizontal(this, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, activeChildOffset, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 							
 						}
 						
@@ -1278,12 +1311,12 @@
 						$(eventObject).bind('mouseup.iosSliderEvent', function(e) {
 							
 							if(xScrollStarted) {
-								$(scrollerNode).children(':eq(' + activeChildOffsets[sliderNumber] + ')').find('a').unbind('click.disableClick').bind('click.disableClick', helpers.preventClick);
+								$(scrollerNode).children(':eq(' + activeChildOffset + ')').find('a').unbind('click.disableClick').bind('click.disableClick', helpers.preventClick);
 							} else {
-								$(scrollerNode).children(':eq(' + activeChildOffsets[sliderNumber] + ')').find('a').unbind('click.disableClick').bind('click.disableClick', helpers.enableClick);
+								$(scrollerNode).children(':eq(' + activeChildOffset + ')').find('a').unbind('click.disableClick').bind('click.disableClick', helpers.enableClick);
 							}
 							
-							$(scrollerNode).children(':eq(' + activeChildOffsets[sliderNumber] + ')').find("[onclick]").each(function() {
+							$(scrollerNode).children(':eq(' + activeChildOffset + ')').find("[onclick]").each(function() {
 								
 								this.onclick = function(event) {
 									if(xScrollStarted) { 
@@ -1307,7 +1340,7 @@
 									return false;
 								}
 								
-								helpers.slowScrollHorizontal(currentSlider, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
+								activeChildOffset = helpers.slowScrollHorizontal(currentSlider, scrollTimeouts, sliderMax, scrollbarClass, xScrollDistance, yScrollDistance, scrollbarWidth, stageWidth, scrollMargin, scrollBorder, activeChildOffset, childrenOffsets, sliderNumber, infiniteSliderOffset, infiniteSliderWidth, numberOfSlides, settings);
 								
 								currentSlider = undefined;
 							
@@ -1378,8 +1411,6 @@
 				}
 								
 				helpers.changeSlide(slide, $(data.scrollerNode), slideTimeouts[data.sliderNumber], data.sliderMax, data.scrollbarClass, data.scrollbarWidth, data.stageWidth, data.scrollMargin, data.scrollBorder, data.childrenOffsets, data.sliderNumber, data.infiniteSliderOffset, data.infiniteSliderWidth, data.numberOfSlides, data.settings);
-				
-				activeChildOffsets[data.sliderNumber] = slide;
 
 			});
 			
